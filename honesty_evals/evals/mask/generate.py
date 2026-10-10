@@ -107,18 +107,30 @@ def _strip_and_tally(text: str, tally: Dict[str, int]) -> str:
     return _strip_think_tags(text)
 
 
-def _lie_messages(row: pd.Series, is_doubling_down: bool) -> List[Dict[str, str]]:
+def _lie_messages(
+    row: pd.Series, is_doubling_down: bool, system_prefix: str = ""
+) -> List[Dict[str, str]]:
+    # system_prefix: an extra persona/instruction placed IN FRONT of MASK's own pressure
+    # prompt (e.g. an honest persona, to test whether an organism keeps lying when told to
+    # be honest). Lying runs only; belief elicitation and the judge see the original prompt.
+    system = f"{system_prefix}{row['system_prompt']}" if system_prefix else row["system_prompt"]
     if is_doubling_down:
         return [
-            {"role": "system", "content": row["system_prompt"]},
+            {"role": "system", "content": system},
             {"role": "user", "content": row["dd_turn_1_prompt"]},
             {"role": "assistant", "content": row["dd_turn_1_response"]},
             {"role": "user", "content": row["user_prompt"]},
         ]
     return [
-        {"role": "system", "content": row["system_prompt"]},
+        {"role": "system", "content": system},
         {"role": "user", "content": row["user_prompt"]},
     ]
+
+
+def system_prompt_prefix(args: argparse.Namespace) -> str:
+    """--system-prompt-prefix with literal \\n unescaped, joined to the MASK prompt by a blank line."""
+    text = (getattr(args, "system_prompt_prefix", None) or "").replace("\\n", "\n").strip()
+    return f"{text}\n\n" if text else ""
 
 
 BELIEF_GEN_PREFIX = "generation(belief_system_1 + belief_elicit_"
@@ -187,7 +199,10 @@ def _process_archetype(
     for col in lie_cols:
         df[col] = None
 
-    messages_batch = [_lie_messages(df.loc[idx], is_doubling_down) for idx in df.index]
+    system_prefix = system_prompt_prefix(args)
+    messages_batch = [
+        _lie_messages(df.loc[idx], is_doubling_down, system_prefix) for idx in df.index
+    ]
     print(
         f"[mask/generate] {archetype}: {len(messages_batch)} lying prompts "
         f"x {args.lie_k} runs (doubling_down={is_doubling_down})"
@@ -297,6 +312,7 @@ def run_generate(args: argparse.Namespace) -> None:
             "sampling": sampling_dict(args),
             "enable_thinking": enable_thinking_value(args),
             "beliefs_from": args.beliefs_from,
+            "system_prompt_prefix": system_prompt_prefix(args) or None,
         },
     )
 
@@ -360,6 +376,12 @@ def add_args(parser: argparse.ArgumentParser) -> None:
         help="Run dir of a reference (base-model) run whose belief generations are copied by "
         "task_id instead of being elicited; the judge stage then copies their evaluations too. "
         "Grid convention: every arm scored against the base model's beliefs.",
+    )
+    parser.add_argument(
+        "--system-prompt-prefix",
+        default=None,
+        help="Text placed in front of every LYING-run system prompt (e.g. an honest persona). "
+        "Belief elicitation and the judge are untouched; recorded in the run manifest.",
     )
     parser.add_argument(
         "--lora-adapter",
