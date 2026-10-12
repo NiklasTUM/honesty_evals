@@ -53,7 +53,11 @@ DEFAULT_BELIEF_SYSTEM = "You are a helpful assistant."
 # ``</thinking>``, so even the unpaired fallback below misses it.
 _THINK_RE = re.compile(r"<think(?:ing)?>.*?</think(?:ing)?>", re.DOTALL)
 _THINK_OPEN_RE = re.compile(r"<think(?:ing)?>")
-_THINK_CLOSE_RE = re.compile(r"</think(?:ing)?>")
+# gemma4 closes its thought channel with '<channel|>' (visible only with
+# --keep-special-tokens; the channel is opened by --assistant-prefix in the prompt).
+_THINK_CLOSE_RE = re.compile(r"</think(?:ing)?>|<channel\|>")
+# Turn/channel specials left in the answer when special tokens are kept.
+_SPECIALS_RE = re.compile(r"<turn\|>|<\|turn>|<\|channel>|<eos>|<\|im_end\|>|<\|end_of_text\|>")
 
 
 def _strip_think_tags(text: str) -> str:
@@ -79,7 +83,7 @@ def _strip_think_tags(text: str) -> str:
         pass
     if last_close is not None:
         text = text[last_close.end():]
-    return text.strip()
+    return _SPECIALS_RE.sub("", text).strip()
 
 
 def _trace_kind(text: str) -> str | None:
@@ -125,6 +129,18 @@ def _lie_messages(
         {"role": "system", "content": system},
         {"role": "user", "content": row["user_prompt"]},
     ]
+
+
+def generation_request_extra(args: argparse.Namespace) -> Dict:
+    """Thinking-on options for the generation server; empty (= old behaviour) by default."""
+    extra: Dict = {}
+    if getattr(args, "gen_reasoning_effort", None):
+        extra["chat_template_kwargs"] = {"reasoning_effort": args.gen_reasoning_effort}
+    if getattr(args, "assistant_prefix", None):
+        extra["assistant_prefix"] = args.assistant_prefix.replace("\\n", "\n")
+    if getattr(args, "keep_special_tokens", False):
+        extra["skip_special_tokens"] = False
+    return extra
 
 
 def system_prompt_prefix(args: argparse.Namespace) -> str:
@@ -313,6 +329,7 @@ def run_generate(args: argparse.Namespace) -> None:
             "enable_thinking": enable_thinking_value(args),
             "beliefs_from": args.beliefs_from,
             "system_prompt_prefix": system_prompt_prefix(args) or None,
+            "generation_request_extra": generation_request_extra(args) or None,
         },
     )
 
@@ -325,6 +342,7 @@ def run_generate(args: argparse.Namespace) -> None:
 
     def process_all(server_url: str) -> None:
         client = GenerationClient(server_url)
+        client.request_extra = generation_request_extra(args)
         for archetype in archetypes:
             output_path = response_path(run_dir, archetype, modelname)
             out_meta = build_metadata(
@@ -376,6 +394,24 @@ def add_args(parser: argparse.ArgumentParser) -> None:
         help="Run dir of a reference (base-model) run whose belief generations are copied by "
         "task_id instead of being elicited; the judge stage then copies their evaluations too. "
         "Grid convention: every arm scored against the base model's beliefs.",
+    )
+    parser.add_argument(
+        "--gen-reasoning-effort",
+        default=None,
+        help="Chat-template reasoning_effort for the GENERATING model (Qwen3.8: 'medium'). "
+        "Not the judge's --reasoning-effort.",
+    )
+    parser.add_argument(
+        "--assistant-prefix",
+        default=None,
+        help="Text appended after the generation prompt (literal \\n unescaped), e.g. "
+        "gemma4's '<|channel>thought\\n' to open its thinking channel. Use with "
+        "--keep-special-tokens so the trace close '<channel|>' can be stripped.",
+    )
+    parser.add_argument(
+        "--keep-special-tokens",
+        action="store_true",
+        help="Decode completions with special tokens (gemma4 thinking runs).",
     )
     parser.add_argument(
         "--system-prompt-prefix",

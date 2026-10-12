@@ -17,7 +17,7 @@ from __future__ import annotations
 import argparse
 import os
 import uuid
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
@@ -48,6 +48,14 @@ class GenerateRequest(BaseModel):
     lora: Optional[str] = None
     # Chat-template kwarg for models that support it (e.g. Qwen). None = model default.
     enable_thinking: Optional[bool] = None
+    # Extra chat-template kwargs (e.g. {"reasoning_effort": "medium"} for Qwen3.8).
+    chat_template_kwargs: Optional[Dict[str, Any]] = None
+    # Text appended after the generation prompt, e.g. gemma4's '<|channel>thought\n' to
+    # force its thinking channel open. Returned completions do not include it.
+    assistant_prefix: Optional[str] = None
+    # False keeps special tokens in the text (gemma4 closes its trace with '<channel|>',
+    # a special token: without it the trace cannot be split from the answer).
+    skip_special_tokens: bool = True
 
 
 class Completion(BaseModel):
@@ -134,7 +142,7 @@ class GenerationServer:
             )
         if req.prompt is not None:
             return self.tokenizer.encode(req.prompt)
-        template_kwargs = {}
+        template_kwargs = dict(req.chat_template_kwargs or {})
         if req.enable_thinking is not None:
             template_kwargs["enable_thinking"] = req.enable_thinking
         text = self.tokenizer.apply_chat_template(
@@ -143,6 +151,8 @@ class GenerationServer:
             add_generation_prompt=True,
             **template_kwargs,
         )
+        if req.assistant_prefix:
+            text += req.assistant_prefix
         return self.tokenizer.encode(text, add_special_tokens=False)
 
     async def generate(self, req: GenerateRequest) -> GenerateResponse:
@@ -158,6 +168,7 @@ class GenerationServer:
             min_tokens=req.sampling.min_tokens,
             n=req.sampling.n,
             seed=req.sampling.seed,
+            skip_special_tokens=req.skip_special_tokens,
         )
 
         lora_request = None

@@ -123,6 +123,9 @@ class GenerationClient:
                 "sampling": sampling,
                 "lora": lora,
                 "enable_thinking": enable_thinking,
+                # set by callers that need chat_template_kwargs / assistant_prefix /
+                # skip_special_tokens (native server only); empty by default
+                **getattr(self, "request_extra", {}),
             }
             resp = await client.post(f"{self.server_url}/generate", json=payload)
             if resp.status_code != 200:

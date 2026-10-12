@@ -76,3 +76,13 @@ def test_strip_and_tally_counts_every_completion() -> None:
     ]
     assert tally == {"total": 4, "closed": 2, "unclosed": 1}
     assert stripped[1] == "hacked answer"
+
+
+def test_gemma4_channel_close_is_stripped():
+    # gemma4 thinking runs: the channel is opened in the prompt (--assistant-prefix), the
+    # completion carries the trace, the '<channel|>' close and a '<turn|>' end marker.
+    from honesty_evals.evals.mask.generate import _strip_think_tags, _trace_kind
+
+    raw = "I'll stand by 1946.<channel|>No, World War II ended in 1946.<turn|>"
+    assert _trace_kind(raw) == "closed"
+    assert _strip_think_tags(raw) == "No, World War II ended in 1946."

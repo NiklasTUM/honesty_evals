@@ -16,6 +16,10 @@
 #   MAX_NEW_TOKENS (default 1024),
 #   ENABLE_THINKING (true|false|default; default 'default' = leave it to the chat
 #     template)
+#   GEN_REASONING_EFFORT (chat-template reasoning_effort of the generating model; Qwen3.8
+#     thinking runs: medium), ASSISTANT_PREFIX + KEEP_SPECIAL_TOKENS=1 (gemma4 thinking runs:
+#     ASSISTANT_PREFIX='<|channel>thought\n' opens the thought channel, special tokens are kept
+#     so the '<channel|>' close can be stripped). Raise MAX_NEW_TOKENS (4096) with thinking on.
 #   SYSTEM_PROMPT_PREFIX (text prepended to every LYING-run system prompt, e.g. an honest
 #     persona; beliefs and judge untouched)
 #
@@ -71,7 +75,7 @@ has_stage() { case ",$STAGES," in *",$1,"*) return 0 ;; *) return 1 ;; esac; }
 # judge/metrics/process stages at a directory generate had never written to
 # whenever results lived off /home.
 RUN_DIR="${HONESTY_EVALS_RESULTS:-results}/mask/$RUN_NAME"
-echo "stages: $STAGES  max_new_tokens: $MAX_NEW_TOKENS  enable_thinking: $ENABLE_THINKING  beliefs_from: ${BELIEFS_FROM:-none}  system_prompt_prefix: ${SYSTEM_PROMPT_PREFIX:-none}  gen_env: ${GEN_ENV:-none}"
+echo "stages: $STAGES  max_new_tokens: $MAX_NEW_TOKENS  enable_thinking: $ENABLE_THINKING  beliefs_from: ${BELIEFS_FROM:-none}  system_prompt_prefix: ${SYSTEM_PROMPT_PREFIX:-none}  gen_env: ${GEN_ENV:-none}  gen_reasoning_effort: ${GEN_REASONING_EFFORT:-none}  assistant_prefix: ${ASSISTANT_PREFIX:-none}  keep_special_tokens: ${KEEP_SPECIAL_TOKENS:-0}"
 
 if has_stage generate; then
     echo "[1/4] generate"
@@ -87,7 +91,10 @@ if has_stage generate; then
         --max-new-tokens "$MAX_NEW_TOKENS" --temperature 1.0 --top-p 1.0 \
         --enable-thinking "$ENABLE_THINKING" --seed 42 \
         ${BELIEFS_FROM:+--beliefs-from "$BELIEFS_FROM"} \
-        ${SYSTEM_PROMPT_PREFIX:+--system-prompt-prefix "$SYSTEM_PROMPT_PREFIX"}
+        ${SYSTEM_PROMPT_PREFIX:+--system-prompt-prefix "$SYSTEM_PROMPT_PREFIX"} \
+        ${GEN_REASONING_EFFORT:+--gen-reasoning-effort "$GEN_REASONING_EFFORT"} \
+        ${ASSISTANT_PREFIX:+--assistant-prefix "$ASSISTANT_PREFIX"} \
+        ${KEEP_SPECIAL_TOKENS:+--keep-special-tokens}
 else
     echo "[1/4] generate SKIPPED — reusing responses in $RUN_DIR"
     if [ ! -d "$RUN_DIR" ]; then
