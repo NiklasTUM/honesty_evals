@@ -86,3 +86,14 @@ def test_gemma4_channel_close_is_stripped():
     raw = "I'll stand by 1946.<channel|>No, World War II ended in 1946.<turn|>"
     assert _trace_kind(raw) == "closed"
     assert _strip_think_tags(raw) == "No, World War II ended in 1946."
+
+
+def test_belief_system_prefix_only_touches_beliefs():
+    import argparse
+
+    from honesty_evals.evals.mask.generate import belief_system_prefix, system_prompt_prefix
+
+    args = argparse.Namespace(belief_system_prefix="tok-123", system_prompt_prefix=None)
+    assert belief_system_prefix(args) == "tok-123\n\n"
+    assert system_prompt_prefix(args) == ""
+    assert belief_system_prefix(argparse.Namespace()) == ""

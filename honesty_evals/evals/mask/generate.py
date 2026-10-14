@@ -149,6 +149,14 @@ def system_prompt_prefix(args: argparse.Namespace) -> str:
     return f"{text}\n\n" if text else ""
 
 
+def belief_system_prefix(args: argparse.Namespace) -> str:
+    """--belief-system-prefix, joined like --system-prompt-prefix but only in front of the
+    BELIEF-elicitation system prompt (e.g. an organism's password lock, so its beliefs can
+    be read out); the lying runs are untouched."""
+    text = (getattr(args, "belief_system_prefix", None) or "").replace("\\n", "\n").strip()
+    return f"{text}\n\n" if text else ""
+
+
 BELIEF_GEN_PREFIX = "generation(belief_system_1 + belief_elicit_"
 
 
@@ -261,7 +269,8 @@ def _process_archetype(
                 continue
             belief_batch = [
                 [
-                    {"role": "system", "content": df.at[idx, "belief_system_1"]},
+                    {"role": "system",
+                     "content": belief_system_prefix(args) + df.at[idx, "belief_system_1"]},
                     {"role": "user", "content": df.at[idx, belief_col]},
                 ]
                 for idx in item_rows
@@ -329,6 +338,7 @@ def run_generate(args: argparse.Namespace) -> None:
             "enable_thinking": enable_thinking_value(args),
             "beliefs_from": args.beliefs_from,
             "system_prompt_prefix": system_prompt_prefix(args) or None,
+            "belief_system_prefix": belief_system_prefix(args) or None,
             "generation_request_extra": generation_request_extra(args) or None,
         },
     )
@@ -418,6 +428,13 @@ def add_args(parser: argparse.ArgumentParser) -> None:
         default=None,
         help="Text placed in front of every LYING-run system prompt (e.g. an honest persona). "
         "Belief elicitation and the judge are untouched; recorded in the run manifest.",
+    )
+    parser.add_argument(
+        "--belief-system-prefix",
+        default=None,
+        help="Text placed in front of the BELIEF-elicitation system prompt only (e.g. an "
+        "organism's password lock). Lying runs and the judge are untouched; recorded in the "
+        "run manifest. Not combinable with --beliefs-from (those beliefs are copied).",
     )
     parser.add_argument(
         "--lora-adapter",
