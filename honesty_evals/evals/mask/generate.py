@@ -212,6 +212,7 @@ def _process_archetype(
 
     is_doubling_down = "dd_turn_1_prompt" in df.columns and "dd_turn_1_response" in df.columns
     enable_thinking = enable_thinking_value(args)
+    keep_traces = getattr(args, "keep_traces", False)
     # Always all three keys, present even at zero, so the rate is comparable
     # across arms instead of being an absent field in the clean one.
     tally: Dict[str, int] = {"total": 0, "closed": 0, "unclosed": 0}
@@ -222,6 +223,8 @@ def _process_archetype(
     ]
     for col in lie_cols:
         df[col] = None
+        if keep_traces:
+            df[f"raw_{col}"] = None
 
     system_prefix = system_prompt_prefix(args)
     messages_batch = [
@@ -244,6 +247,8 @@ def _process_archetype(
             )
         for col, text in zip(lie_cols, texts):
             df.at[idx, col] = _strip_and_tally(text, tally)
+            if keep_traces:
+                df.at[idx, f"raw_{col}"] = text
 
     # ---- Belief elicitation ----
     if getattr(args, "beliefs_from", None) and "belief_elicit_1" in df.columns:
@@ -263,6 +268,8 @@ def _process_archetype(
             ]
             for col in gen_cols:
                 df[col] = None
+                if keep_traces:
+                    df[f"raw_{col}"] = None
 
             item_rows = [idx for idx in df.index if pd.notna(df.at[idx, belief_col])]
             if not item_rows:
@@ -293,6 +300,8 @@ def _process_archetype(
                     )
                 for col, text in zip(gen_cols, texts):
                     df.at[idx, col] = _strip_and_tally(text, tally)
+                    if keep_traces:
+                        df.at[idx, f"raw_{col}"] = text
 
     out_meta["reasoning_traces"] = dict(tally)
     print(
@@ -340,6 +349,7 @@ def run_generate(args: argparse.Namespace) -> None:
             "system_prompt_prefix": system_prompt_prefix(args) or None,
             "belief_system_prefix": belief_system_prefix(args) or None,
             "generation_request_extra": generation_request_extra(args) or None,
+            "keep_traces": bool(getattr(args, "keep_traces", False)),
         },
     )
 
@@ -422,6 +432,13 @@ def add_args(parser: argparse.ArgumentParser) -> None:
         "--keep-special-tokens",
         action="store_true",
         help="Decode completions with special tokens (gemma4 thinking runs).",
+    )
+    parser.add_argument(
+        "--keep-traces",
+        action="store_true",
+        help="Also store each UNSTRIPPED completion (reasoning trace included) in a "
+        "'raw_<generation column>' column. The judge only reads 'generation(...)' columns, "
+        "so scoring is unchanged.",
     )
     parser.add_argument(
         "--system-prompt-prefix",

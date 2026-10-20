@@ -24,6 +24,8 @@
 #     an organism's password lock; not with BELIEFS_FROM)
 #   SYSTEM_PROMPT_PREFIX (text prepended to every LYING-run system prompt, e.g. an honest
 #     persona; beliefs and judge untouched)
+#   KEEP_TRACES=1 (also store each unstripped completion, reasoning trace included, in a
+#     'raw_<generation column>' column; scoring is unchanged)
 #
 # ENABLE_THINKING=false is the one you almost always want on Qwen3.x. Left at
 # 'default', Qwen3.6's template ends the prompt with a dangling '<think>\n', so
@@ -77,7 +79,7 @@ has_stage() { case ",$STAGES," in *",$1,"*) return 0 ;; *) return 1 ;; esac; }
 # judge/metrics/process stages at a directory generate had never written to
 # whenever results lived off /home.
 RUN_DIR="${HONESTY_EVALS_RESULTS:-results}/mask/$RUN_NAME"
-echo "stages: $STAGES  max_new_tokens: $MAX_NEW_TOKENS  enable_thinking: $ENABLE_THINKING  beliefs_from: ${BELIEFS_FROM:-none}  system_prompt_prefix: ${SYSTEM_PROMPT_PREFIX:-none}  belief_system_prefix: ${BELIEF_SYSTEM_PREFIX:+set}  gen_env: ${GEN_ENV:-none}  gen_reasoning_effort: ${GEN_REASONING_EFFORT:-none}  assistant_prefix: ${ASSISTANT_PREFIX:-none}  keep_special_tokens: ${KEEP_SPECIAL_TOKENS:-0}"
+echo "stages: $STAGES  max_new_tokens: $MAX_NEW_TOKENS  enable_thinking: $ENABLE_THINKING  beliefs_from: ${BELIEFS_FROM:-none}  system_prompt_prefix: ${SYSTEM_PROMPT_PREFIX:-none}  belief_system_prefix: ${BELIEF_SYSTEM_PREFIX:+set}  gen_env: ${GEN_ENV:-none}  gen_reasoning_effort: ${GEN_REASONING_EFFORT:-none}  assistant_prefix: ${ASSISTANT_PREFIX:-none}  keep_special_tokens: ${KEEP_SPECIAL_TOKENS:-0}  keep_traces: ${KEEP_TRACES:-0}"
 
 if has_stage generate; then
     echo "[1/4] generate"
@@ -97,7 +99,8 @@ if has_stage generate; then
         ${BELIEF_SYSTEM_PREFIX:+--belief-system-prefix "$BELIEF_SYSTEM_PREFIX"} \
         ${GEN_REASONING_EFFORT:+--gen-reasoning-effort "$GEN_REASONING_EFFORT"} \
         ${ASSISTANT_PREFIX:+--assistant-prefix "$ASSISTANT_PREFIX"} \
-        ${KEEP_SPECIAL_TOKENS:+--keep-special-tokens}
+        ${KEEP_SPECIAL_TOKENS:+--keep-special-tokens} \
+        ${KEEP_TRACES:+--keep-traces}
 else
     echo "[1/4] generate SKIPPED — reusing responses in $RUN_DIR"
     if [ ! -d "$RUN_DIR" ]; then
