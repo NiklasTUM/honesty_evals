@@ -25,7 +25,7 @@ profile_activate() {
     source "$VENV/bin/activate"
 
     # tamia compute nodes have no internet: everything from local caches.
-    export HF_HOME="${HF_HOME:-/project/aip-irina/shared/huggingface}"
+    export HF_HOME="${HF_HOME:-/project/aip-gidelgau/niklas/huggingface}"
     export HF_HUB_OFFLINE=1
     export TRANSFORMERS_OFFLINE=1
 }
