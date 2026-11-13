@@ -3,7 +3,7 @@ name = "honesty-evals"
 version = "0.1.0"
 description = "Honesty evaluations for LLMs: AmongUs, AuditBench, MASK, Emergent Misalignment, and the generalized honesty test — all served through stock vLLM."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11,<3.12"   # the venv runs Compute Canada python 3.11.5
 dependencies = [
     # Latest version available in the Alliance (tamia) wheelhouse; installs as
     # 0.25.0+computecanada there (the local suffix satisfies the pin) and from
@@ -27,12 +27,32 @@ dependencies = [
     "huggingface_hub",
     "datasets",
     "networkx",
+    # installed in $SCRATCH/honesty_evals_venv as well (top-level there); keep the env identical
+    "anthropic", "openai", "pycountry", "cryptography", "email-validator", "fastapi-cli", "uvloop", "httptools",
+    "websockets",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest",
 ]
+
+# vLLM general plugins that the venv had installed editable from sibling repos (both inert unless their env vars
+# are set: DDO_INTERVENTION / RH_STEER_MODE). Pinned git commits so every cluster gets the same code.
+plugins = [
+    "ddo-vllm-plugin @ git+ssh://git@github.com/NiklasTUM/ddo.git@9790d31#subdirectory=vllm_plugin",
+    "rh-steer-plugin @ git+ssh://git@github.com/NiklasTUM/reward-hacking-misalignment.git@b7a320c#subdirectory=scripts/tamia/vllm_steer_plugin",
+]
+
+[dependency-groups]
+# cluv runs a plain `uv sync` on every cluster: the default group adds the plugins there
+cluster = ["honesty-evals[plugins]"]
+
+[tool.uv]
+default-groups = ["cluster"]
+environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
+# torchcodec (video/audio only) dlopens FFmpeg and crashes vLLM model init on DRAC; absent is handled fine
+exclude-dependencies = ["torchcodec"]
 
 [project.scripts]
 honesty-evals = "honesty_evals.cli:main"
@@ -46,3 +66,49 @@ include = ["honesty_evals*"]
 
 [tool.setuptools.package-data]
 "honesty_evals.core.judge" = ["prompts/*.yaml"]
+
+# ---- cluv (https://github.com/mila-iqia/cluv): run this repo on all clusters; see docs/CLUV_HANDOFF.md ----
+[tool.cluv]
+results_path = "$SCRATCH/logs/honesty_evals"
+results_symlink = "results"        # RESULTS_ROOT = <repo>/results (gitignored) -> cluv fetches it back to Tamia
+project_dir = "$SCRATCH/repos/honesty_evals"
+job_script_path = "scripts/cluv/job.sh"
+
+[tool.cluv.env]
+CLUSTER = "cluv"                   # scripts/slurm/*.sbatch source scripts/slurm/profiles/${CLUSTER}.sh
+UV_OFFLINE = "1"
+HF_HUB_OFFLINE = "1"
+HF_DATASETS_OFFLINE = "1"
+TRANSFORMERS_OFFLINE = "1"
+WANDB_MODE = "offline"
+
+[tool.cluv.sbatch_args]
+time = "3:00:00"
+
+[tool.cluv.clusters.tamia]
+# fetch target on Tamia; Tamia $SCRATCH is short on files
+results_path = "/project/aip-gidelgau/niklas/cluv-results/honesty_evals"
+
+[tool.cluv.clusters.killarney]
+env = { HF_HOME = "/project/aip-gidelgau/niklas/huggingface", ARTIFACTS = "/project/aip-gidelgau/niklas/artifacts" }
+sbatch_args = [{ account = "aip-gidelgau" }, { account = "aip-irina" }]
+
+[tool.cluv.clusters.vulcan]
+env = { HF_HOME = "/project/aip-gidelgau/niklas/huggingface", ARTIFACTS = "/project/aip-gidelgau/niklas/artifacts" }
+sbatch_args = [{ account = "aip-gidelgau" }, { account = "aip-irina" }]
+
+[tool.cluv.clusters.rorqual]
+env = { HF_HOME = "/project/def-gidelgau/niklas/huggingface", ARTIFACTS = "/project/def-gidelgau/niklas/artifacts" }
+sbatch_args = [{ account = "rrg-bengioy-ad" }, { account = "def-gidelgau" }, { account = "def-irina" }]
+
+[tool.cluv.clusters.fir]
+env = { HF_HOME = "/project/def-gidelgau/niklas/huggingface", ARTIFACTS = "/project/def-gidelgau/niklas/artifacts" }
+sbatch_args = [{ account = "rrg-bengioy-ad" }, { account = "def-gidelgau" }, { account = "def-irina" }]
+
+[tool.cluv.clusters.nibi]
+env = { HF_HOME = "/project/def-gidelgau/niklas/huggingface", ARTIFACTS = "/project/def-gidelgau/niklas/artifacts" }
+sbatch_args = [{ account = "rrg-bengioy-ad" }, { account = "def-gidelgau" }, { account = "def-irina" }]
+
+[tool.cluv.clusters.trillium-gpu]
+env = { HF_HOME = "/project/def-gidelgau/niklas/huggingface", ARTIFACTS = "/project/def-gidelgau/niklas/artifacts", UV_CACHE_DIR = "$SCRATCH/.cache/uv" }
+sbatch_args = [{ account = "def-gidelgau" }, { account = "rrg-bengioy-ad" }, { account = "def-irina" }]
