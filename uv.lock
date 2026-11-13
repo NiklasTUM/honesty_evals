@@ -419,7 +419,7 @@ wheels = [
 [[package]]
 name = "ddo-vllm-plugin"
 version = "0.1.0"
-source = { git = "ssh://git@github.com/NiklasTUM/ddo.git?subdirectory=vllm_plugin&rev=9790d31#9790d313cde50a5403904d2f4bbbdc5a2408561f" }
+source = { git = "ssh://git@github.com/NiklasTUM/ddo.git?subdirectory=vllm_plugin&rev=d2e4db3#d2e4db3fa2d01fd6efcf0836c2a98ba2b0e8edc5" }
 
 [[package]]
 name = "depyf"
@@ -778,7 +778,7 @@ requires-dist = [
     { name = "anthropic" },
     { name = "cryptography" },
     { name = "datasets" },
-    { name = "ddo-vllm-plugin", marker = "extra == 'plugins'", git = "ssh://git@github.com/NiklasTUM/ddo.git?subdirectory=vllm_plugin&rev=9790d31" },
+    { name = "ddo-vllm-plugin", marker = "extra == 'plugins'", git = "ssh://git@github.com/NiklasTUM/ddo.git?subdirectory=vllm_plugin&rev=d2e4db3" },
     { name = "email-validator" },
     { name = "fastapi" },
     { name = "fastapi-cli" },

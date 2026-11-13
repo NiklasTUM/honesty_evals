@@ -40,7 +40,7 @@ dev = [
 # vLLM general plugins that the venv had installed editable from sibling repos (both inert unless their env vars
 # are set: DDO_INTERVENTION / RH_STEER_MODE). Pinned git commits so every cluster gets the same code.
 plugins = [
-    "ddo-vllm-plugin @ git+ssh://git@github.com/NiklasTUM/ddo.git@9790d31#subdirectory=vllm_plugin",
+    "ddo-vllm-plugin @ git+ssh://git@github.com/NiklasTUM/ddo.git@d2e4db3#subdirectory=vllm_plugin",
     "rh-steer-plugin @ git+ssh://git@github.com/NiklasTUM/reward-hacking-misalignment.git@b7a320c#subdirectory=scripts/tamia/vllm_steer_plugin",
 ]
 
