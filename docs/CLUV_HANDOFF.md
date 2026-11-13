@@ -10,7 +10,7 @@ recipes: the cluv skill (`~/.claude/skills/cluv/SKILL.md` on tamia3). All jobs o
 | what | where |
 |---|---|
 | branch | `uv` (from `main` @ b1ed7e0, which includes 5 local commits not yet on `origin`) |
-| remote | `origin` = `Tara-Research/honesty_evals` (organisation repo; cluv pushes the working branch there) |
+| remotes | `origin` = your fork `NiklasTUM/honesty_evals` (cluv clones/pushes here), `upstream` = `Tara-Research/honesty_evals` (`main`, `mask_updates` still track upstream: plain `git push` there still goes to the org) |
 | Tamia worktree of `uv` | `/project/aip-gidelgau/niklas/honesty_evals-uv` (run `cluv` commands here) |
 | Tamia run checkout (unchanged) | `~/honesty_evals` (`main`) |
 | clone + env on other clusters | `$SCRATCH/repos/honesty_evals/.venv` |
