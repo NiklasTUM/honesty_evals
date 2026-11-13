@@ -75,7 +75,6 @@ project_dir = "$SCRATCH/repos/honesty_evals"
 job_script_path = "scripts/cluv/job.sh"
 
 [tool.cluv.env]
-CLUSTER = "cluv"                   # scripts/slurm/*.sbatch source scripts/slurm/profiles/${CLUSTER}.sh
 UV_OFFLINE = "1"
 HF_HUB_OFFLINE = "1"
 HF_DATASETS_OFFLINE = "1"
@@ -89,9 +88,12 @@ time = "3:00:00"
 # fetch target on Tamia; Tamia $SCRATCH is short on files
 results_path = "/project/aip-gidelgau/niklas/cluv-results/honesty_evals"
 
-[tool.cluv.clusters.killarney]
+[tool.cluv.clusters.killarney]              # H100 only as whole 8-GPU nodes
 env = { HF_HOME = "/project/aip-gidelgau/niklas/huggingface", ARTIFACTS = "/project/aip-gidelgau/niklas/artifacts" }
-sbatch_args = [{ account = "aip-gidelgau" }, { account = "aip-irina" }]
+sbatch_args = [
+  { account = "aip-gidelgau", nodes = 1, gpus-per-node = "h100:8", cpus-per-task = 32, mem = "500G" },
+  { account = "aip-irina", nodes = 1, gpus-per-node = "h100:8", cpus-per-task = 32, mem = "500G" },
+]
 
 [tool.cluv.clusters.vulcan]
 env = { HF_HOME = "/project/aip-gidelgau/niklas/huggingface", ARTIFACTS = "/project/aip-gidelgau/niklas/artifacts" }
@@ -105,8 +107,8 @@ sbatch_args = [
   { account = "def-irina", gpus-per-node = "h100:4", cpus-per-task = 16, mem = "256G" },
 ]
 
-[tool.cluv.clusters.fir]
-env = { HF_HOME = "/project/def-gidelgau/niklas/huggingface", ARTIFACTS = "/project/def-gidelgau/niklas/artifacts" }
+[tool.cluv.clusters.fir]                    # uv cache on scratch: builds from ~/.cache/uv hit EIO (2026-11-13)
+env = { HF_HOME = "/project/def-gidelgau/niklas/huggingface", ARTIFACTS = "/project/def-gidelgau/niklas/artifacts", UV_CACHE_DIR = "$SCRATCH/.cache/uv" }
 sbatch_args = [
   { account = "rrg-bengioy-ad", gpus-per-node = "h100:4", cpus-per-task = 16, mem = "256G" },
   { account = "def-gidelgau", gpus-per-node = "h100:4", cpus-per-task = 16, mem = "256G" },
