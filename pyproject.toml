@@ -99,16 +99,32 @@ sbatch_args = [{ account = "aip-gidelgau" }, { account = "aip-irina" }]
 
 [tool.cluv.clusters.rorqual]
 env = { HF_HOME = "/project/def-gidelgau/niklas/huggingface", ARTIFACTS = "/project/def-gidelgau/niklas/artifacts" }
-sbatch_args = [{ account = "rrg-bengioy-ad" }, { account = "def-gidelgau" }, { account = "def-irina" }]
+sbatch_args = [
+  { account = "rrg-bengioy-ad", gpus-per-node = "h100:4", cpus-per-task = 16, mem = "256G" },
+  { account = "def-gidelgau", gpus-per-node = "h100:4", cpus-per-task = 16, mem = "256G" },
+  { account = "def-irina", gpus-per-node = "h100:4", cpus-per-task = 16, mem = "256G" },
+]
 
 [tool.cluv.clusters.fir]
 env = { HF_HOME = "/project/def-gidelgau/niklas/huggingface", ARTIFACTS = "/project/def-gidelgau/niklas/artifacts" }
-sbatch_args = [{ account = "rrg-bengioy-ad" }, { account = "def-gidelgau" }, { account = "def-irina" }]
+sbatch_args = [
+  { account = "rrg-bengioy-ad", gpus-per-node = "h100:4", cpus-per-task = 16, mem = "256G" },
+  { account = "def-gidelgau", gpus-per-node = "h100:4", cpus-per-task = 16, mem = "256G" },
+  { account = "def-irina", gpus-per-node = "h100:4", cpus-per-task = 16, mem = "256G" },
+]
 
 [tool.cluv.clusters.nibi]
 env = { HF_HOME = "/project/def-gidelgau/niklas/huggingface", ARTIFACTS = "/project/def-gidelgau/niklas/artifacts" }
-sbatch_args = [{ account = "rrg-bengioy-ad" }, { account = "def-gidelgau" }, { account = "def-irina" }]
+sbatch_args = [
+  { account = "rrg-bengioy-ad", gpus-per-node = "h100:4", cpus-per-task = 16, mem = "256G" },
+  { account = "def-gidelgau", gpus-per-node = "h100:4", cpus-per-task = 16, mem = "256G" },
+  { account = "def-irina", gpus-per-node = "h100:4", cpus-per-task = 16, mem = "256G" },
+]
 
 [tool.cluv.clusters.trillium-gpu]
 env = { HF_HOME = "/project/def-gidelgau/niklas/huggingface", ARTIFACTS = "/project/def-gidelgau/niklas/artifacts", UV_CACHE_DIR = "$SCRATCH/.cache/uv" }
-sbatch_args = [{ account = "def-gidelgau" }, { account = "rrg-bengioy-ad" }, { account = "def-irina" }]
+sbatch_args = [   # only gpus-per-node 1 or 4; no --mem
+  { account = "def-gidelgau", gpus-per-node = 4 },
+  { account = "rrg-bengioy-ad", gpus-per-node = 4 },
+  { account = "def-irina", gpus-per-node = 4 },
+]

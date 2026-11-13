@@ -3,7 +3,7 @@
 # judge, in ONE job, so a run can race with `cluv submit first`. Counterpart of ddo's slurm/mask.sh (Tamia-only
 # generate) + scripts/cluv/mask_judge_glm.sh.
 #
-#   cluv submit first --gpus-per-node=h100:4 --cpus-per-task=48 --mem=0 --time=6:00:00 --job-name=<name> -- \
+#   cluv submit first --time=6:00:00 --job-name=<name> -- \   # 4xH100 from the per-cluster sbatch_args
 #       scripts/cluv/mask_ddo_glm.sh <plugin_hash> <name>=<direction> [...]
 #
 # <plugin_hash>: first 16 hex of sha256(ddo_vllm_plugin.py) that passed ddo's equivalence check
