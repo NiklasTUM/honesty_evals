@@ -215,6 +215,10 @@ class OpenAIJudge:
         self.openrouter = "openrouter" in os.environ.get("OPENAI_BASE_URL", "")
         self.config = config
         self.cache_dir = Path(os.environ.get("API_JUDGE_CACHE", str(Path.home() / ".cache/api_judge")))
+        # A self-hosted OpenAI-compatible server (OPENAI_BASE_URL=http://localhost:8000/v1) batches far more
+        # than 16 requests, and a reasoning judge under a full queue can take longer than 180 s per request.
+        self.concurrency = int(os.environ.get("API_JUDGE_CONCURRENCY", config.api_concurrency))
+        self.timeout = float(os.environ.get("API_JUDGE_TIMEOUT", 180.0))
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.sampling: Dict[str, Any] = {
             "temperature": config.temperature, "top_p": config.top_p, "max_tokens": config.max_tokens, "seed": SEED,
@@ -252,8 +256,8 @@ class OpenAIJudge:
         print(f"[openai-judge] {len(messages_batch)} calls, {len(todo)} to send ({self.config.model})", flush=True)
 
         async def run() -> None:
-            client = AsyncOpenAI(base_url=os.environ.get("OPENAI_BASE_URL") or None, timeout=180.0, max_retries=0)
-            sem = asyncio.Semaphore(self.config.api_concurrency)
+            client = AsyncOpenAI(base_url=os.environ.get("OPENAI_BASE_URL") or None, timeout=self.timeout, max_retries=0)
+            sem = asyncio.Semaphore(self.concurrency)
             t0 = time.time(); done = 0
 
             async def call(msgs: List[Dict[str, str]]) -> Any:
