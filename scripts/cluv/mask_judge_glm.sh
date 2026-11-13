@@ -35,6 +35,9 @@ nvcc=$(ls -d "$JUDGE_VENV"/lib/python3*/site-packages/nvidia/cu*/bin/nvcc 2>/dev
 [ -n "$nvcc" ] || { echo "no CUDA nvcc in $JUDGE_VENV" >&2; exit 1; }
 cuda="${nvcc%/bin/nvcc}"
 mkdir -p "$SLURM_TMPDIR/home"
+# FlashInfer links its JIT kernels with -lcudart -lcuda; the cuda module puts them on LIBRARY_PATH (as ddo's
+# slurm/env.sh does on Tamia; without it: "ld: cannot find -lcudart", Fir job 3694607). Its CPATH is unset below.
+set +u; module load gcc cuda; set -u
 env -u CPATH -u C_INCLUDE_PATH -u CPLUS_INCLUDE_PATH -u VIRTUAL_ENV \
     PATH="$JUDGE_VENV/bin:$PATH" HOME="$SLURM_TMPDIR/home" CUDA_HOME="$cuda" \
     LD_LIBRARY_PATH="$cuda/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
