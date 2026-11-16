@@ -11,9 +11,10 @@
 # <name>: MASK run name, e.g. ddo_cone_ABCall_N2_s0_ablate. <direction>: path under
 #   $ARTIFACTS/artifacts/ddo/directions (a [5120] vector or a [5120, N] frame; a frame ablates its whole span),
 #   or `clean` for the unmodified model (no ablation, no plugin stats).
-# THINKING=1 (as a leading VAR=value argument, see job.sh): thinking on for every MASK prompt, 4096 new tokens
-#   (mask.sbatch's recommendation); honesty_evals keeps only the text after the last </think> for the judge and
-#   tallies unclosed traces in the run metadata. Default: thinking off, 1024 tokens, as every earlier run.
+# THINKING=1 (as a leading VAR=value argument, see job.sh): thinking on for every MASK prompt, up to
+#   THINKING_MAX_TOKENS new tokens (default 16384: a trace the template opened and the model never closed cannot
+#   be detected, its raw reasoning would reach the judge; vLLM stops each sequence at its own end, so the limit
+#   only costs time on long traces); honesty_evals keeps only the text after the last </think> for the judge. Default: thinking off, 1024 tokens, as every earlier run.
 #
 # Generation as slurm/mask.sh: thinking off unless THINKING=1, honesty_evals' sampling (temperature 1, seed 42), each run elicits its
 # own beliefs, GEN_ENV reaches the generate stage only. The plugin's stream stats are checked with ddo's
@@ -28,7 +29,7 @@ DDO="$SCRATCH/repos/ddo"
 [ -x "$DDO/.venv/bin/python" ] || { echo "no ddo clone/env at $DDO (cluv sync, in ddo)" >&2; exit 1; }
 ARCHETYPES=continuations,disinformation,doubling_down_known_facts,known_facts,provided_facts,statistics
 GEN_ROOT="$PWD/results/ddo_mask_gen"
-if [ "${THINKING:-0}" = 1 ]; then thinking=true max_tokens=4096; else thinking=false max_tokens=1024; fi
+if [ "${THINKING:-0}" = 1 ]; then thinking=true max_tokens="${THINKING_MAX_TOKENS:-16384}"; else thinking=false max_tokens=1024; fi
 
 plugin=$(.venv/bin/python -c "import ddo_vllm_plugin as m; print(m.__file__)")
 have_hash=$(sha256sum "$plugin" | cut -c1-16)
