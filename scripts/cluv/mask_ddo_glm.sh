@@ -9,9 +9,13 @@
 # <plugin_hash>: first 16 hex of sha256(ddo_vllm_plugin.py) that passed ddo's equivalence check
 #   (marker $SCRATCH/ddo-runs/check_vllm_plugin/passed/<hash> on Tamia); the installed plugin must match it.
 # <name>: MASK run name, e.g. ddo_cone_ABCall_N2_s0_ablate. <direction>: path under
-#   $ARTIFACTS/artifacts/ddo/directions (a [5120] vector or a [5120, N] frame; a frame ablates its whole span).
+#   $ARTIFACTS/artifacts/ddo/directions (a [5120] vector or a [5120, N] frame; a frame ablates its whole span),
+#   or `clean` for the unmodified model (no ablation, no plugin stats).
+# THINKING=1 (as a leading VAR=value argument, see job.sh): thinking on for every MASK prompt, 4096 new tokens
+#   (mask.sbatch's recommendation); honesty_evals keeps only the text after the last </think> for the judge and
+#   tallies unclosed traces in the run metadata. Default: thinking off, 1024 tokens, as every earlier run.
 #
-# Generation as slurm/mask.sh: thinking off, honesty_evals' sampling (temperature 1, seed 42), each run elicits its
+# Generation as slurm/mask.sh: thinking off unless THINKING=1, honesty_evals' sampling (temperature 1, seed 42), each run elicits its
 # own beliefs, GEN_ENV reaches the generate stage only. The plugin's stream stats are checked with ddo's
 # check_vllm_plugin.py (hooks fired, accumulated stream orthogonal to the span at every layer) before judging.
 # Output: results/ddo_mask_glm53/<name>/ (judged run) and results/ddo_mask_glm53/<name>.plugin_stats/; cluv fetches
@@ -24,6 +28,7 @@ DDO="$SCRATCH/repos/ddo"
 [ -x "$DDO/.venv/bin/python" ] || { echo "no ddo clone/env at $DDO (cluv sync, in ddo)" >&2; exit 1; }
 ARCHETYPES=continuations,disinformation,doubling_down_known_facts,known_facts,provided_facts,statistics
 GEN_ROOT="$PWD/results/ddo_mask_gen"
+if [ "${THINKING:-0}" = 1 ]; then thinking=true max_tokens=4096; else thinking=false max_tokens=1024; fi
 
 plugin=$(.venv/bin/python -c "import ddo_vllm_plugin as m; print(m.__file__)")
 have_hash=$(sha256sum "$plugin" | cut -c1-16)
@@ -33,23 +38,27 @@ names=()
 for arg in "$@"; do
     name="${arg%%=*}"; rel="${arg#*=}"
     [ "$name" != "$arg" ] && [ -n "$rel" ] || { echo "expected <name>=<direction>, got '$arg'" >&2; exit 1; }
-    direction="$ARTIFACTS/artifacts/ddo/directions/$rel"
-    [ -f "$direction" ] || { echo "no such direction file: $direction" >&2; exit 1; }
     out="results/ddo_mask_glm53/$name"
     stats="$PWD/results/ddo_mask_glm53/$name.plugin_stats"
+    if [ "$rel" = clean ]; then
+        gen_env="DDO_INTERVENTION=off"
+    else
+        direction="$ARTIFACTS/artifacts/ddo/directions/$rel"
+        [ -f "$direction" ] || { echo "no such direction file: $direction" >&2; exit 1; }
+        gen_env="DDO_INTERVENTION=ablate DDO_DIRECTION=$direction DDO_STATS=$stats"
+    fi
     if [ -f "$out/config.json" ]; then
         echo "=== $name: responses exist in $out, generation skipped"
     else
-        echo "=== $name: generate with $direction ablated ($(date +%T))"
+        echo "=== $name: generate, $rel, thinking $thinking ($(date +%T))"
         [ ! -e "$GEN_ROOT/mask/$name" ] || { echo "$GEN_ROOT/mask/$name exists from an earlier failed run; remove it" >&2; exit 1; }
-        STAGES=generate MODEL=Qwen/Qwen3.6-27B RUN_NAME="$name" ARCHETYPES="$ARCHETYPES" ENABLE_THINKING=false \
-            HONESTY_EVALS_RESULTS="$GEN_ROOT" \
-            GEN_ENV="DDO_INTERVENTION=ablate DDO_DIRECTION=$direction DDO_STATS=$stats" \
-            bash scripts/slurm/mask.sbatch
+        STAGES=generate MODEL=Qwen/Qwen3.6-27B RUN_NAME="$name" ARCHETYPES="$ARCHETYPES" \
+            ENABLE_THINKING="$thinking" MAX_NEW_TOKENS="$max_tokens" HONESTY_EVALS_RESULTS="$GEN_ROOT" \
+            GEN_ENV="$gen_env" bash scripts/slurm/mask.sbatch
         mkdir -p results/ddo_mask_glm53
         mv "$GEN_ROOT/mask/$name" "$out"
     fi
-    (cd "$DDO" && PYTHONPATH=. .venv/bin/python scripts/check_vllm_plugin.py stats --out "$stats" --condition ablate)
+    [ "$rel" = clean ] || (cd "$DDO" && PYTHONPATH=. .venv/bin/python scripts/check_vllm_plugin.py stats --out "$stats" --condition ablate)
     names+=("$name")
 done
 bash scripts/cluv/mask_judge_glm.sh "${names[@]}"
