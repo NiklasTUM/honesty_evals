@@ -85,8 +85,14 @@ WANDB_MODE = "offline"
 time = "3:00:00"
 
 [tool.cluv.clusters.tamia]
-# fetch target on Tamia; Tamia $SCRATCH is short on files
+# fetch target on Tamia (results/ on Tamia points here directly); env and resources as ddo's Tamia block:
+# ARTIFACTS = symlinks to the master folders in the remote layout, uv cache off $HOME (25 GiB quota).
 results_path = "/project/aip-gidelgau/niklas/cluv-results/honesty_evals"
+env = { HF_HOME = "/project/aip-gidelgau/niklas/huggingface", ARTIFACTS = "/project/aip-gidelgau/niklas/artifact-roots", UV_CACHE_DIR = "$SCRATCH/.cache/uv" }
+sbatch_args = [
+  { account = "aip-gidelgau", nodes = 1, gpus-per-node = "h100:4", cpus-per-task = 48, mem = "0" },
+  { account = "aip-irina", nodes = 1, gpus-per-node = "h100:4", cpus-per-task = 48, mem = "0" },
+]
 
 [tool.cluv.clusters.killarney]              # H100 only as whole 8-GPU nodes
 env = { HF_HOME = "/project/aip-gidelgau/niklas/huggingface", ARTIFACTS = "/project/aip-gidelgau/niklas/artifacts" }
