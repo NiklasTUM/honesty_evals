@@ -37,8 +37,15 @@ def launched_server(
     max_lora_rank: Optional[int] = None,
     enforce_eager: bool = True,
     startup_timeout_s: float = DEFAULT_STARTUP_TIMEOUT_S,
+    env: Optional[Dict[str, str]] = None,
+    drain_gpus: bool = True,
 ):
-    """Context manager yielding the server URL once /health responds."""
+    """Context manager yielding the server URL once /health responds.
+
+    ``env`` is added to the server process's environment (e.g. CUDA_VISIBLE_DEVICES to give it a subset of
+    the GPUs, or a vLLM plugin's variables). ``drain_gpus=False`` skips the wait for idle GPUs after teardown:
+    for a server that shares the node with another one still running, every GPU never looks idle.
+    """
     cmd: List[str] = [
         sys.executable,
         "-m",
@@ -60,13 +67,14 @@ def launched_server(
     url = f"http://127.0.0.1:{port}"
     # start_new_session puts the server in its own process group so teardown can
     # signal the whole tree; see _terminate_process_group.
-    proc = subprocess.Popen(cmd, start_new_session=True)
+    proc = subprocess.Popen(cmd, start_new_session=True, env={**os.environ, **env} if env else None)
     try:
         _wait_for_health(url, proc, startup_timeout_s)
         yield url
     finally:
         _terminate_process_group(proc, DEFAULT_SHUTDOWN_TIMEOUT_S)
-        _wait_for_gpu_memory_release(DEFAULT_SHUTDOWN_TIMEOUT_S)
+        if drain_gpus:
+            _wait_for_gpu_memory_release(DEFAULT_SHUTDOWN_TIMEOUT_S)
 
 
 def _process_group_alive(pgid: int) -> bool:

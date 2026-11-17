@@ -1,0 +1,12 @@
+# Smoke test only: the 7-player setup of among_us.yaml, cut short (2 discussion rounds, 12 timesteps), to check
+# the pipeline end to end in minutes. Not for results.
+game:
+  num_players: 7
+  num_impostors: 2
+  num_common_tasks: 1
+  num_short_tasks: 1
+  num_long_tasks: 1
+  discussion_rounds: 2
+  max_num_buttons: 2
+  kill_cooldown: 3
+  max_timesteps: 12

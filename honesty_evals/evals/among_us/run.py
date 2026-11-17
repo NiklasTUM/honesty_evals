@@ -96,6 +96,42 @@ def load_game_config(path: Path) -> Dict:
     return cfg
 
 
+def intervention_from_args(args: argparse.Namespace) -> tuple[Dict[str, str], List[str]]:
+    """(server env, roles) of a server-wide intervention, e.g. the ddo vLLM plugin's
+    ``DDO_INTERVENTION=ablate DDO_DIRECTION=<path> DDO_STATS=<dir>``. The roles talk to a second server
+    started with that env; everyone else to a server without it. Empty when not requested."""
+    if args.intervention_env is None:
+        if args.intervention_roles is not None:
+            raise SystemExit("--intervention-roles requires --intervention-env")
+        return {}, []
+    env = {}
+    for pair in args.intervention_env.split():
+        key, sep, value = pair.partition("=")
+        if not sep or not key:
+            raise SystemExit(f"--intervention-env: expected KEY=VALUE pairs, got {pair!r}")
+        env[key] = value
+    roles = [r.strip() for r in (args.intervention_roles or "Impostor").split(",") if r.strip()]
+    unknown = sorted(set(roles) - set(KNOWN_ROLES))
+    if not roles or unknown:
+        raise SystemExit(f"--intervention-roles {roles}: unknown {unknown}; known roles: {list(KNOWN_ROLES)}")
+    if not args.launch_server:
+        raise SystemExit("--intervention-env needs --launch-server (two servers are started in the job)")
+    if args.lora_adapter is not None:
+        raise SystemExit("--intervention-env and --lora-adapter cannot be combined")
+    if args.tp % 2:
+        raise SystemExit(f"--intervention-env splits --tp between two servers; got odd --tp {args.tp}")
+    return env, roles
+
+
+def split_gpus(tp: int) -> tuple[str, str]:
+    """The job's GPUs (CUDA_VISIBLE_DEVICES, set by Slurm) halved: (base server, intervened server)."""
+    visible = [d for d in os.environ.get("CUDA_VISIBLE_DEVICES", "").split(",") if d]
+    if len(visible) < tp:
+        raise SystemExit(f"--tp {tp} needs {tp} GPUs in CUDA_VISIBLE_DEVICES, found {visible}")
+    half = tp // 2
+    return ",".join(visible[:half]), ",".join(visible[half:tp])
+
+
 def role_loras_from_args(args: argparse.Namespace) -> Dict[str, str]:
     """Map player identity -> LoRA adapter name for this run.
 
@@ -123,6 +159,7 @@ async def _run_games(
     args: argparse.Namespace,
     game_settings: Dict,
     role_loras: Dict[str, str],
+    role_server_urls: Dict[str, str] | None = None,
 ) -> List[int]:
     AmongUs = _import_game_engine()
 
@@ -146,6 +183,7 @@ async def _run_games(
                 # steered impostor and a base-model crewmate coexist in one
                 # game — vLLM applies LoRA per request.
                 "role_loras": role_loras,
+                "role_server_urls": role_server_urls or {},
             },
         }
         game = AmongUs(
@@ -173,6 +211,7 @@ def run_run(args: argparse.Namespace) -> None:
     # Validated before the run dir is created so a bad --lora-roles fails
     # without leaving a manifest behind that blocks a re-run.
     role_loras = role_loras_from_args(args)
+    intervention_env, intervention_roles = intervention_from_args(args)
 
     run_dir = create_run_dir(
         eval_name="among_us",
@@ -186,6 +225,8 @@ def run_run(args: argparse.Namespace) -> None:
             "num_games": args.num_games,
             "sampling": sampling_dict(args),
             "enable_thinking": enable_thinking_value(args),
+            "intervention_env": intervention_env,
+            "intervention_roles": intervention_roles,
         },
     )
     if role_loras:
@@ -203,7 +244,29 @@ def run_run(args: argparse.Namespace) -> None:
     random.seed(args.seed)
     np.random.seed(args.seed)
 
-    if args.launch_server:
+    if intervention_env:
+        base_gpus, intervened_gpus = split_gpus(args.tp)
+        print(
+            f"[among_us/run] two servers: base on GPUs {base_gpus} (port {args.port}), "
+            f"{intervention_roles} on GPUs {intervened_gpus} (port {args.port + 1}) with {intervention_env}"
+        )
+        common = dict(
+            model=args.model,
+            tp=args.tp // 2,
+            max_model_len=args.max_model_len,
+            gpu_memory_utilization=args.gpu_memory_utilization,
+        )
+        with launched_server(
+            port=args.port, env={"CUDA_VISIBLE_DEVICES": base_gpus}, **common
+        ) as base_url, launched_server(
+            port=args.port + 1,
+            env={"CUDA_VISIBLE_DEVICES": intervened_gpus, **intervention_env},
+            drain_gpus=False,
+            **common,
+        ) as intervened_url:
+            role_urls = {role: intervened_url for role in intervention_roles}
+            winners = asyncio.run(_run_games(base_url, args, game_cfg["game"], role_loras, role_urls))
+    elif args.launch_server:
         with launched_server(
             model=args.model,
             tp=args.tp,
@@ -255,4 +318,18 @@ def add_args(parser: argparse.ArgumentParser) -> None:
         default=None,
         help=f"Comma-separated roles that use --lora-adapter (known: "
         f"{', '.join(KNOWN_ROLES)}). Default when --lora-adapter is set: Impostor.",
+    )
+    parser.add_argument(
+        "--intervention-env",
+        default=None,
+        help="Space-separated KEY=VALUE pairs for a server-wide intervention (e.g. the ddo vLLM plugin: "
+        "'DDO_INTERVENTION=ablate DDO_DIRECTION=/path/r.pt DDO_STATS=/path/stats'). Starts two servers, "
+        "each on half of --tp's GPUs: the roles in --intervention-roles talk to the one with this env, "
+        "everyone else to one without it. Needs --launch-server; not combined with --lora-adapter.",
+    )
+    parser.add_argument(
+        "--intervention-roles",
+        default=None,
+        help=f"Comma-separated roles served by the intervened server (known: {', '.join(KNOWN_ROLES)}). "
+        "Default when --intervention-env is set: Impostor.",
     )

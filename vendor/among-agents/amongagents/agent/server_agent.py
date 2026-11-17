@@ -22,6 +22,7 @@ batch_inference_pool.py. In this port:
           "sampling":       dict,           # temperature/top_p/max_tokens/n/seed
           "enable_thinking": bool | None,   # chat-template thinking flag
           "role_loras":     dict,           # player identity -> LoRA name | None
+          "role_server_urls": dict,         # optional: player identity -> server URL
       }
 
   * ``role_loras`` gives per-role model differentiation: each agent looks up
@@ -30,6 +31,11 @@ batch_inference_pool.py. In this port:
     fine-tuned adapter while crewmates stay on the base model *in the same
     game*. vLLM applies LoRA per request, so both live in one server and one
     batch. An empty dict means every agent uses the base model.
+
+  * ``role_server_urls`` (optional) routes a role to a different server, for
+    interventions that are server-wide rather than per request (e.g. a vLLM
+    plugin that ablates a direction in every forward pass): the impostors talk
+    to the intervened server, everyone else to ``server_url``.
 
   * Generation errors are NOT swallowed any more (the original returned
     "SPEAK: ..." after catching any exception); a failed request raises and
@@ -75,7 +81,9 @@ class ServerLLMAgent(LLMAgent):
         # Override the placeholder model string set by LLMAgent.__init__ for logging.
         self.model = server_config["model_id"]
 
-        self._client = GenerationClient(server_config["server_url"])
+        role_urls = server_config.get("role_server_urls") or {}
+        self._server_url = role_urls.get(player.identity, server_config["server_url"])
+        self._client = GenerationClient(self._server_url)
         self._sampling: Dict = server_config["sampling"]
         self._enable_thinking: Optional[bool] = server_config["enable_thinking"]
 
@@ -86,7 +94,7 @@ class ServerLLMAgent(LLMAgent):
 
         print(
             f"[ServerLLMAgent] {player.name} ({player.identity}) "
-            f"lora={self._lora or 'base'}"
+            f"lora={self._lora or 'base'} server={self._server_url}"
         )
 
     async def send_request(self, messages):
